@@ -145,6 +145,13 @@ function isAbsolute(UriInterface $uri): bool
     return !empty($path) && '/' == $path[0];
 }
 
+function hasPath(UriInterface $uri): bool
+{
+    $path = $uri->getPath();
+
+    return !empty($path);
+}
+
 function hasHost(UriInterface $uri): bool
 {
     return !is_null($uri->getHost());

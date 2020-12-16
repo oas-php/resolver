@@ -112,7 +112,7 @@ final class Resolver
             realPath(
                 $ref,
                 isAbsolute($ref) ? null
-                    : (hasFragment($ref) && !isAbsolute($ref) ? $context : UriHelpers\dirname($context))
+                    : (hasFragment($ref) && !hasPath($ref) ? $context : UriHelpers\dirname($context))
             )
             ->getPath()
         );
