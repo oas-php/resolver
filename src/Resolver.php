@@ -86,7 +86,7 @@ final class Resolver
                 $raw = @file_get_contents(urldecode($normalized));
 
                 if (false === $raw) {
-                    throw new FetchingException($uri);
+                    throw new FetchingException($uri, error_get_last()['message']);
                 }
 
                 return $raw;
