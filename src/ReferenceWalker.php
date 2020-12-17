@@ -56,8 +56,9 @@ class ReferenceWalker
     private function yieldReference(Reference $reference, array $path = [], array $visitedReferences = []): \Generator
     {
         $deeper = (bool) yield $path => [$reference, $this->alreadyVisited($visitedReferences, $reference)];
+        $resolved = $reference->getResolved();
 
-        if ($deeper) {
+        if (!is_scalar($resolved) && $deeper) {
             yield from $this->doWalk(
                 $reference->getResolved(), $path, append($visitedReferences, $reference)
             );

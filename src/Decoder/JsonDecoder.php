@@ -20,7 +20,7 @@ class JsonDecoder implements DecoderInterface
         $this->options = $options;
     }
 
-    public function decode(string $encoded): array
+    public function decode(string $encoded)
     {
         try {
             return \json_decode($encoded, true, $this->depth, $this->options | JSON_THROW_ON_ERROR);

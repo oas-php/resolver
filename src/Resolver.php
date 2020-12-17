@@ -41,34 +41,36 @@ final class Resolver
             $this->fetch($uri)
         );
 
-        if (hasFragment($uri)) {
-            $decoded = retrieveByPath(
-                $decoded, pathSegments($uri->getFragment())
-            );
-        }
+        if (is_array($decoded)) {
+            if (hasFragment($uri)) {
+                $decoded = retrieveByPath(
+                    $decoded, pathSegments($uri->getFragment())
+                );
+            }
 
-        foreach ($this->walk($decoded) as $path => $ref) {
-            $resolvedRef = $this->resolveUri(
-                $this->createUri($ref), $uri
-            );
+            foreach ($this->walk($decoded) as $path => $ref) {
+                $resolvedRef = $this->resolveUri(
+                    $this->createUri($ref), $uri
+                );
 
-            // is recursion detected?
-            $ref = \array_key_exists((string) $resolvedRef, $resolvedRefs)
-                ?
-                    $resolvedRefs[(string) $resolvedRef]
-                :
-                    Reference::createDeferred(
-                        $ref,
-                        function (Reference $reference) use ($resolvedRef, $resolvedRefs, $uri) {
-                            $resolvedRefs[(string) $resolvedRef] = $reference;
+                // is recursion detected?
+                $ref = \array_key_exists((string) $resolvedRef, $resolvedRefs)
+                    ?
+                        $resolvedRefs[(string) $resolvedRef]
+                    :
+                        Reference::createDeferred(
+                            $ref,
+                            function (Reference $reference) use ($resolvedRef, $resolvedRefs, $uri) {
+                                $resolvedRefs[(string) $resolvedRef] = $reference;
 
-                            return $this->doResolve(
-                                $resolvedRef, $resolvedRefs
-                            );
-                        }
-                    );
+                                return $this->doResolve(
+                                    $resolvedRef, $resolvedRefs
+                                );
+                            }
+                        );
 
-            $decoded = replaceAtPath($decoded, $path, $ref);
+                $decoded = replaceAtPath($decoded, $path, $ref);
+            }
         }
 
         return $decoded;
@@ -94,7 +96,7 @@ final class Resolver
         );
     }
 
-    private function decode(string $encoded): array
+    private function decode(string $encoded)
     {
         $decoder = $this->configuration->getDecoder();
 

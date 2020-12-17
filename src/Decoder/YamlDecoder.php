@@ -19,7 +19,7 @@ class YamlDecoder implements DecoderInterface
         $this->options = $options;
     }
 
-    public function decode(string $encoded, string $format = null): array
+    public function decode(string $encoded)
     {
         try {
             return Yaml::parse($encoded, $this->options);

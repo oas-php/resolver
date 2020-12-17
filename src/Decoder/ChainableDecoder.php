@@ -27,14 +27,14 @@ class ChainableDecoder implements DecoderInterface
         $this->decoders[] = $decoder;
     }
 
-    public function decode(string $encoded): array
+    public function decode(string $encoded)
     {
         foreach ($this->decoders as $decoder) {
             try {
                 return $decoder->decode($encoded);
             } catch (DecodingException $exception) {
                 continue;
-           }
+            }
         }
 
         throw new DecodingException($encoded, 'Non of registered decoder was able to handle provided resource');

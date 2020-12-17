@@ -7,7 +7,7 @@ interface DecoderInterface
     /**
      * @param string $encoded
      * @throws DecodingException
-     * @return array
+     * @return array|scalar
      */
-    public function decode(string $encoded): array;
+    public function decode(string $encoded);
 }
