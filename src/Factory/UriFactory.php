@@ -11,7 +11,10 @@ final class UriFactory implements UriFactoryInterface
     {
         if (!class_exists(\GuzzleHttp\Psr7\Uri::class)) {
             throw new \RuntimeException(
-                sprintf('URI Factory not provided. Install guzzlehttp/psr7 package or provide implementation of %s ', UriFactoryInterface::class)
+                sprintf(
+                    'URI Factory not provided. Install guzzlehttp/psr7 package or provide implementation of %s ',
+                    UriFactoryInterface::class
+                )
             );
         }
     }

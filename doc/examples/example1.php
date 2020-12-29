@@ -18,5 +18,3 @@ $uri = sprintf(
 );
 
 $resolved = (new Resolver())->resolve($uri);
-
-echo EncoderFactory::create()->encode($resolved, 'json');
