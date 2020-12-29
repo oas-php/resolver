@@ -1,86 +1,363 @@
 <?php declare(strict_types=1);
 
 use PHPUnit\Framework\TestCase;
-use OAS\Resolver\Resolver;
-use OAS\Resolver\Reference;
-use OAS\Resolver\Configuration;
-use OAS\Resolver\Decoder\YamlDecoder;
-use OAS\Resolver\ReferenceWalker;
-use function OAS\Resolver\retrieveByPath;
+use OAS\Resolver\Graph\Node;
+use OAS\Resolver\Graph\ReferenceNode;
+use function OAS\Resolver\jsonPointerDecode;
+use function OAS\Resolver\pathSegments;
+
+const SAMPLE_DOCUMENT_URI = __DIR__ . '/../vendor/oas-php/sample/docs/library/openapi.json';
 
 class ResolverTest extends TestCase
 {
     /**
      * @test
-     * @dataProvider paramsProvider
+     * @covers \OAS\Resolver\Resolver::resolve
+     * @covers \OAS\Resolver\Resolver::resolveDecoded
+     * @covers \OAS\Resolver\Graph\Node::find
+     * @covers \OAS\Resolver\Graph\Node::denormalize
+     * @dataProvider dataProvider
      */
-    public function itResolvesAllRefs(Resolver $resolver, string $uri)
+    public function itResolvesRefsCorrectly(Node $resolved, array $assertions): void
     {
-        $resolved = $resolver->resolve($uri);
-        $this->assertRefsResolved($resolved);
+        [$referencesAssertions, $denormalizedAssertions] = $assertions;
+
+        //$this->assertNotEmpty($referencesAssertions);
+        //$this->assertNotEmpty($denormalizedAssertions);
+
+        foreach ($referencesAssertions as $referencesAssertion) {
+            [$referencePath, $value] = $referencesAssertion;
+            $reference = $resolved->find($referencePath);
+
+            $this->assertInstanceOf(ReferenceNode::class, $reference);
+
+            $this->assertEquals($reference->value(), $value);
+        }
+
+        $denormalized = $resolved->denormalize();
+
+        foreach ($denormalizedAssertions as $denormalizedAssertion) {
+            [$path, $denormalizedPart] = $denormalizedAssertion;
+            $this->assertEquals($denormalizedPart, retrieveByPath($denormalized, $path));
+        }
     }
 
-    /**
-     * @test
-     */
-    public function itRaisesErrorIsRefIsNotString()
+    public function dataProvider(): array
     {
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('$ref must be of string type');
-
-        $uri = stream_get_meta_data(tmpfile())['uri'];
-
-        file_put_contents(
-            $uri, json_encode(['$ref' => null])
-        );
-
-        (new Resolver())->resolve($uri);
-    }
-
-    /**
-     * @test
-     * @dataProvider paramsProvider
-     */
-    public function itDetectsRecursiveReferences(Resolver $resolver, string $uri)
-    {
-        $resolved = $resolver->resolve($uri);
-
-        // Check the following recursion:
-        //  Movie -(through: director)-> Director -(through: directed)-> Movie
-        $movieA = retrieveByPath($resolved, ['components', 'schemas', 'Movie']);
-        $director = retrieveByPath($movieA, ['properties', 'director']);
-        $movieB = retrieveByPath($director, ['allOf', 1, 'properties', 'directed', 'items']);
-
-        $this->assertSame($movieA, $movieB);
-    }
-
-    public function paramsProvider(): array
-    {
-        $yamlResolver = new Resolver(
-            new Configuration(null, new YamlDecoder())
-        );
+        $resolver = new OAS\Resolver\Resolver;
 
         return [
+            // test 1
             [
-                $yamlResolver, 'http://localhost/library/openapi.yaml'
-            ]
+                // resolved
+                $resolver->resolveDecoded(
+                    [
+                        'a' => [
+                            '$ref' => '#/defs/a'
+                        ],
+                        'defs' => [
+                            'a' => true
+                        ]
+                    ]
+                ),
+                // assertions
+                [
+                    // resolved
+                    [
+                        [
+                            // path
+                            '/a/$ref',
+                            // value
+                            true
+                        ]
+                    ],
+                    // denormalized
+                    [
+                        [
+                            // path
+                            '',
+                            // value
+                            ['a' => true, 'defs' => ['a' => true]]
+                        ]
+                    ]
+                ]
+            ],
+            // test 2
+            [
+                $resolved = $resolver->resolveDecoded(
+                    [
+                        'a' => [
+                            '$ref' => '#/'
+                        ]
+                    ]
+                ),
+                [
+                    [
+                        [
+                            '/a/$ref',
+                            $resolved->value()
+                        ]
+                    ],
+                    [
+                        [
+                            '',
+                            ['a' => ['$ref' => '#/']]
+                        ]
+                    ]
+                ]
+            ],
+            // test 3
+            [
+                $resolved = $resolver->resolveDecoded(
+                    [
+                        'a' => [
+                            '$ref' => '#/b'
+                        ],
+                        'b' => [
+                            '$ref' => '#/c'
+                        ],
+                        'c' => [
+                            '$ref' => '#/b'
+                        ]
+                    ]
+                ),
+                // assertions
+                [
+                    // resolved
+                    [
+                        [
+                            '/a/$ref',
+                            $resolved['b']->value()
+                        ],
+                        [
+                            '/b/$ref',
+                            $resolved['c']->value()
+                        ],
+                        [
+                            '/c/$ref',
+                            $resolved['b']->value()
+                        ],
+                        [
+                            '/b/$ref/$ref',
+                            $resolved['b']->value()
+                        ],
+                        [
+                            '/c/$ref/$ref',
+                            $resolved['c']->value()
+                        ]
+                    ],
+                    // denormalized
+                    [
+                        // TODO : if refs are recursive and not-resolvable
+                        // consider not to change them at all during de-normalization
+                        // process
+                        [
+                            '',
+                            [
+                                'a' => [
+                                    '$ref' => '#/b'
+                                ],
+                                'b' => [
+                                    '$ref' => '#/b'
+                                ],
+                                'c' => [
+                                    '$ref' => '#/c'
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            // test 4
+            [
+                $resolved = $resolver->resolveDecoded(
+                    [
+                        'a' => [
+                            'b' => [
+                                '$ref' => '#/c'
+                            ]
+                        ],
+                        'c' => [
+                            '$ref' => '#/a'
+                        ]
+                    ]
+                ),
+                // assertions
+                [
+                    // resolved
+                    [
+                        [
+                            '/a/b/$ref',
+                            $resolved['c']->value()
+                        ],
+                        [
+                            '/a/b/$ref/$ref',
+                            $resolved['a']->value()
+                        ],
+                        [
+                            '/c/$ref',
+                            $resolved['a']->value()
+                        ]
+                    ],
+                    // denormalized
+                    [
+                        [
+                            '/c',
+                            [
+                                'b' => [
+                                    '$ref' => '#/c'
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            // test 5
+            [
+                $resolver->resolve(SAMPLE_DOCUMENT_URI),
+                // assertions
+                [
+                    // resolved
+                    [],
+                    // denormalized
+                    [
+                        [
+                            '/paths/~1movies/get/responses/200/content/application~1json/schema/properties/data/items',
+                            [
+                                'type' => 'object',
+                                'properties' => [
+                                    'title' => [
+                                        'type' => 'string'
+                                    ],
+                                    'genre' => [
+                                        'type' => 'string'
+                                    ],
+                                    'year' => [
+                                        'type' => 'integer'
+                                    ],
+                                    'director' => [
+                                        'allOf' => [
+                                            [
+                                                'type' => 'object',
+                                                'properties' => [
+                                                    'firstName' => [
+                                                        'type' => 'string'
+                                                    ],
+                                                    'lastName' => [
+                                                        'type' => 'string'
+                                                    ],
+                                                    'yearOfBirth' => [
+                                                        'type' => 'integer'
+                                                    ]
+                                                ],
+                                                'required' => [
+                                                    'firstName', 'lastName', 'yearOfBirth'
+                                                ],
+                                                'example' => [
+                                                    'firstName' => 'Jack',
+                                                    'lastName' => 'Nicholson',
+                                                    'yearOfBirth' => 1937
+                                                ]
+                                            ],
+                                            [
+                                                'type' => 'object',
+                                                'properties' => [
+                                                    'directed' => [
+                                                        'type' => 'array',
+                                                        'items' => [
+                                                            '$ref' => '#/components/schemas/Movie'
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ],
+                                    'actors' => [
+                                        'type' => 'array',
+                                        'items' => [
+                                            'allOf' => [
+                                                [
+                                                    'type' => 'object',
+                                                    'properties' => [
+                                                        'firstName' => [
+                                                            'type' => 'string'
+                                                        ],
+                                                        'lastName' => [
+                                                            'type' => 'string'
+                                                        ],
+                                                        'yearOfBirth' => [
+                                                            'type' => 'integer'
+                                                        ]
+                                                    ],
+                                                    'required' => [
+                                                        'firstName', 'lastName', 'yearOfBirth'
+                                                    ],
+                                                    'example' => [
+                                                        'firstName' => 'Jack',
+                                                        'lastName' => 'Nicholson',
+                                                        'yearOfBirth' => 1937
+                                                    ]
+                                                ],
+                                                [
+                                                    'type' => 'object',
+                                                    'properties' => [
+                                                        'actedId' => [
+                                                            'type' => 'array',
+                                                            'items' => [
+                                                                '$ref' => '#/components/schemas/Movie'
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ],
+                                'example' => [
+                                    'title' => 'The Shining',
+                                    'year' => 1980,
+                                    'director' => [
+                                        'firstName' => 'Stanley',
+                                        'lastName' => 'Kubrick',
+                                        'yearOfBirth' => 1928
+                                    ],
+                                    'actors' => [
+                                        [
+                                            'firstName' => 'Jack',
+                                            'lastName' => 'Nicholson',
+                                            'yearOfBirth' => 1937
+                                        ],
+                                        [
+                                            'firstName' => 'Shelley',
+                                            'lastName' => 'Duvall',
+                                            'yearOfBirth' => 1949
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ],
         ];
-    }
-
-    private function assertRefsResolved(array $graph): void
-    {
-        $referenceWalker = new ReferenceWalker($graph);
-
-        while ($referenceWalker->walk()) {
-            $this->assertInstanceOf(
-                Reference::class,
-                $referenceWalker->currentReference()
-            );
-
-            $referenceWalker->nextReference(
-                !$referenceWalker->isRecursive()
-            );
-        }
     }
 }
 
+function retrieveByPath($graph, string $path)
+{
+    $current = &$graph;
+    $path = array_map(
+        fn (string $segment) => jsonPointerDecode($segment),
+        pathSegments($path)
+    );
+
+    foreach ($path as $pathSegment) {
+        if (!array_key_exists($pathSegment, $current)) {
+            throw new \RuntimeException(sprintf('Path "%s" does not exist', \join(' -> ', $path)));
+        }
+
+        $current = &$current[$pathSegment];
+    }
+
+    return $current;
+}

@@ -4,16 +4,16 @@ namespace OAS\Resolver;
 
 class DecodingException extends \RuntimeException
 {
-    private $schema;
+    private string $resource;
 
-    public function __construct(string $schema, $message = "", $code = 0, \Throwable $previous = null)
+    public function __construct(string $resource, $message = "", $code = 0, \Throwable $previous = null)
     {
         parent::__construct($message, $code, $previous);
-        $this->schema = $schema;
+        $this->resource = $resource;
     }
 
-    public function getSchema(): string
+    public function resource(): string
     {
-        return $this->schema;
+        return $this->resource;
     }
 }

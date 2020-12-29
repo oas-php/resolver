@@ -7,8 +7,8 @@ use OAS\Resolver\DecodingException;
 
 class JsonDecoder implements DecoderInterface
 {
-    private $depth;
-    private $options;
+    private int $depth;
+    private int $options;
 
     /**
      * @param int $depth    is passed to json_decode as third param
@@ -23,7 +23,7 @@ class JsonDecoder implements DecoderInterface
     public function decode(string $encoded)
     {
         try {
-            return \json_decode($encoded, true, $this->depth, $this->options | JSON_THROW_ON_ERROR);
+            return json_decode($encoded, true, $this->depth, $this->options | JSON_THROW_ON_ERROR);
         } catch (\JsonException $jsonException) {
             throw new DecodingException($encoded, $jsonException->getMessage(), 0, $jsonException);
         }

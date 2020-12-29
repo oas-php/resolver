@@ -1,0 +1,2 @@
+* better error handling for non-existing fragments
+    PHP Fatal error:  Uncaught RuntimeException: Path "example_2" does not exist in /opt/app/vendor/oas-php/resolver/src/functions.php:46

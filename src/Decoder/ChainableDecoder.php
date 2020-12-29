@@ -7,10 +7,8 @@ use OAS\Resolver\DecodingException;
 
 class ChainableDecoder implements DecoderInterface
 {
-    /**
-     * @var DecoderInterface[]
-     */
-    private $decoders = [];
+    /** @var DecoderInterface[] */
+    private array $decoders = [];
 
     /**
      * @param DecoderInterface[] $decoders

@@ -11,11 +11,11 @@ final class DecoderFactory
     {
         $encoder = new Decoder\ChainableDecoder();
 
-        if (\function_exists('\json_encode')) {
+        if (function_exists('\json_encode')) {
             $encoder->addFormatDecoder(new Decoder\JsonDecoder());
         }
 
-        if (\class_exists('\Symfony\Component\Yaml\Yaml')) {
+        if (class_exists('\Symfony\Component\Yaml\Yaml')) {
             $encoder->addFormatDecoder(new Decoder\YamlDecoder());
         }
 

@@ -10,7 +10,10 @@ final class CacheFactory
     {
         if (!class_exists('\Cache\Adapter\PHPArray\ArrayCachePool')) {
             throw new \RuntimeException(
-                sprintf('Install cache/array-adapter package (composer req cache/array-adapter) or provide implementation of %s', CacheInterface::class)
+                sprintf(
+                    'Install cache/array-adapter package (composer req cache/array-adapter) or provide implementation of %s',
+                    CacheInterface::class
+                )
             );
         }
 

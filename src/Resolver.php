@@ -2,12 +2,16 @@
 
 namespace OAS\Resolver;
 
+use OAS\Resolver\Graph\Node;
+use OAS\Resolver\Graph\ReferenceNode;
 use Psr\Http\Message\UriInterface;
-use OAS\Resolver as UriHelpers;
 
 final class Resolver
 {
-    private $configuration;
+    private Configuration $configuration;
+
+    /** @var Node[] */
+    private array $resolved;
 
     public function __construct(Configuration $configuration = null)
     {
@@ -19,67 +23,108 @@ final class Resolver
         return $this->configuration;
     }
 
-    /**
-     * @param UriInterface|string $uri
-     * @return Reference|array
-     */
-    public function resolve($uri)
+    public function resolve(string $uri): Node
     {
+        $this->resolved = [];
+
         return $this->doResolve(
-            $this->createUri($uri), []
+            $this->createUri($uri)
         );
     }
 
-    /**
-     * @param UriInterface $uri
-     * @param array $resolvedRefs
-     * @return Reference|array
-     */
-    private function doResolve(UriInterface $uri, array $resolvedRefs)
+    public function resolveEncoded(string $encoded, string $uri = null): Node
     {
-        $decoded = $this->decode(
-            $this->fetch($uri)
+        $uri = $this->createUri($uri ?? getcwd());
+        $root = new Node($uri, $this->decode($encoded));
+        $this->resolved = [$root];
+
+        return $this->doResolveRefs($root, $uri, $this->resolved);
+    }
+
+    public function resolveDecoded($decoded, string $uri = null): Node
+    {
+        $uri = $this->createUri($uri ?? getcwd());
+        $root = new Node($uri, $decoded);
+        $this->resolved = [$root];
+
+        return $this->doResolveRefs($root, $uri, $this->resolved);
+    }
+
+    private function doResolve(UriInterface $uri, array $visited = []): Node
+    {
+        $graph = $this->resolved[] = new Node(
+            $uri, $this->decode(
+                $this->fetch($uri)
+            )
         );
 
-        if (is_array($decoded)) {
-            if (hasFragment($uri)) {
-                $decoded = retrieveByPath(
-                    $decoded, pathSegments($uri->getFragment())
+        if (hasFragment($uri)) {
+            $graph = $graph->find(
+                $uri->getFragment()
+            );
+        }
+
+        return $this->doResolveRefs($graph, $uri, $visited);
+    }
+
+    private function doResolveRefs(Node $graph, UriInterface $uri, array $visited, bool $changeBaseUri = true): Node
+    {
+        $baseUri = null;
+
+        /** @var Node $node */
+        foreach ($graph as $node) {
+            if ($changeBaseUri && '$id' === $node->pathFromParent() && $node->isLeaf()) {
+                $baseUri = $this->createUri(
+                    $node->value()
                 );
             }
 
-            foreach ($this->walk($decoded) as $path => $ref) {
-                $resolvedRef = $this->resolveUri(
-                    $this->createUri($ref), $uri
+            if ($node instanceof ReferenceNode) {
+                if ($changeBaseUri && !$node->isRoot() && $node->parent()->has('$id')) {
+                    $idNode = $node->get('$id');
+                     $baseUri = $idNode->isLeaf()
+                         ? $this->createUri(
+                             $idNode->value()
+                         )
+                         : $baseUri;
+                }
+
+                $ref = $node->ref();
+                $refUri = $this->resolveUri(
+                    $this->createUri($ref == '#' ? '#/' : $ref), $uri, $baseUri
                 );
 
-                // is recursion detected?
-                $ref = \array_key_exists((string) $resolvedRef, $resolvedRefs)
-                    ?
-                        $resolvedRefs[(string) $resolvedRef]
-                    :
-                        Reference::createDeferred(
-                            $ref,
-                            function (Reference $reference) use ($resolvedRef, $resolvedRefs, $uri) {
-                                $resolvedRefs[(string) $resolvedRef] = $reference;
+                $isResolved = !is_null($reference = $this->resolved($refUri));
 
-                                return $this->doResolve(
-                                    $resolvedRef, $resolvedRefs
-                                );
-                            }
+                if ($isResolved) {
+                    $node->resolve($reference, false);
+                } else {
+                    try {
+                        $node->resolve(
+                            $this->doResolve($refUri, $visited)
                         );
-
-                $decoded = replaceAtPath($decoded, $path, $ref);
+                    } catch (DecodingException $decodingException) {
+                        throw new UndecodeableRefException(
+                            $uri, $refUri, $node->ref(), $decodingException
+                        );
+                    } catch (FetchingException $fetchingException) {
+                        throw new UnreachableRefException(
+                            $uri, $node->ref(), $fetchingException
+                        );
+                    }
+                }
+            } else {
+                $visited[] = $node;
             }
         }
 
-        return $decoded;
+        return $graph;
     }
 
     private function fetch(UriInterface $uri): string
     {
-        $normalized = (string) UriHelpers\realPath(
-            UriHelpers\withoutFragment($uri)
+        $normalized = (string) realPath(
+            $uri->withFragment('')
         );
 
         return $this->fromCache(
@@ -101,20 +146,29 @@ final class Resolver
         $decoder = $this->configuration->getDecoder();
 
         return $this->fromCache(
-            'decode_' . md5($encoded),
+            'decoded_' . md5($encoded),
             function () use ($decoder, $encoded) {
                 return $decoder->decode($encoded);
             }
         );
     }
 
-    private function resolveUri(UriInterface $ref, UriInterface $context): UriInterface
+    private function createUri(string $uri): UriInterface
     {
+        return $this->configuration->getUriFactory()->createUri($uri);
+    }
+
+    private function resolveUri(UriInterface $ref, UriInterface $context, UriInterface $baseUri = null): UriInterface
+    {
+        if (!is_null($baseUri)) {
+            $context = $this->resolveUri($baseUri, $context);
+        }
+
         $resolved = $ref->withPath(
             realPath(
                 $ref,
                 isAbsolute($ref) ? null
-                    : (hasFragment($ref) && !hasPath($ref) ? $context : UriHelpers\dirname($context))
+                    : (hasFragment($ref) && !hasPath($ref) ? $context : dirname($context))
             )
             ->getPath()
         );
@@ -132,21 +186,17 @@ final class Resolver
             : $resolved;
     }
 
-    /**
-     * @param UriInterface|string $uri
-     * @return UriInterface
-     */
-    private function createUri($uri): UriInterface
+    private function resolved(UriInterface $uri): ?Node
     {
-        if (is_string($uri)) {
-            $uri = $this->configuration->getUriFactory()->createUri($uri);
+        foreach ($this->resolved as $resolvedNode) {
+            if (includes($resolvedNode->uri(), $uri)) {
+                return $resolvedNode->find(
+                    $uri->getFragment()
+                );
+            }
         }
 
-        if (!$uri instanceof UriInterface) {
-            throw new \InvalidArgumentException('Uri must be of string or \Psr\Http\Message\UriInterface type');
-        }
-
-        return $uri;
+        return null;
     }
 
     private function fromCache(string $key, callable $getValue)
@@ -164,25 +214,5 @@ final class Resolver
         }
 
         return $value;
-    }
-
-    private function walk(array $graph, array $path = []): \Generator
-    {
-        foreach ($graph as $pathSegment => $node) {
-            $currentPath = $path;
-
-            if ('$ref' === $pathSegment) {
-                if (!\is_string($node)) {
-                    throw new \LogicException('$ref must be of string type');
-                }
-
-                yield $path => $node;
-                continue;
-            }
-
-            if (is_array($node)) {
-                yield from $this->walk($node, append($currentPath, $pathSegment));
-            }
-        }
     }
 }

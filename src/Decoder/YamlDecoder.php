@@ -9,7 +9,7 @@ use OAS\Resolver\DecodingException;
 
 class YamlDecoder implements DecoderInterface
 {
-    private $options;
+    private int $options;
 
     /**
      * @param int $options is passed to Symfony\Component\Yaml\Yaml::parse as second param
