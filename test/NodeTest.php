@@ -3,7 +3,7 @@
 use PHPUnit\Framework\TestCase;
 use OAS\Resolver\Graph\Node;
 use OAS\Resolver\Factory\UriFactory;
-use Psr\Http\Message\UriInterface;
+use OAS\Resolver\Factory\TreeFactory;
 
 class NodeTest extends TestCase
 {
@@ -161,9 +161,13 @@ class NodeTest extends TestCase
      */
     public function itConvertsGraphBackToArray(): void
     {
+        $uriFactory = new UriFactory();
+        $treeFactory = new TreeFactory($uriFactory);
+
         $rawGraph = $this->getRawGraph();
-        $graph = new Node(
-            $this->createUri(self::URI), $rawGraph
+        $graph = $treeFactory->create(
+            $rawGraph,
+            $uriFactory->createUri(self::URI)
         );
 
         $this->assertEquals(
@@ -182,8 +186,12 @@ class NodeTest extends TestCase
 
     private function getGraph(): Node
     {
-        return new Node(
-            $this->createUri(self::URI), $this->getRawGraph()
+        $uriFactory = new UriFactory();
+        $treeFactory = new TreeFactory($uriFactory);
+
+        return $treeFactory->create(
+            $this->getRawGraph(),
+            $uriFactory->createUri(self::URI)
         );
     }
 
@@ -199,10 +207,5 @@ class NodeTest extends TestCase
                 ]
             ]
         ];
-    }
-
-    private function createUri(string $raw): UriInterface
-    {
-        return (new UriFactory())->createUri($raw);
     }
 }

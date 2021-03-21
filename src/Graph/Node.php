@@ -4,14 +4,16 @@ namespace OAS\Resolver\Graph;
 
 use OAS\Resolver\JsonPointerException;
 use Psr\Http\Message\UriInterface;
-use function OAS\Resolver\{jsonPointerEncode, jsonPointerDecode, pathSegments, join};
+use function OAS\Resolver\{decode, encode, pathSegments};
 use function iter\reduce;
 
 class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
 {
     protected UriInterface $uri;
 
-    protected ?Node $parent;
+    protected UriInterface $canonicalUri;
+
+    protected ?Node $parent = null;
 
     /** @var Node[]|scalar  */
     protected $value;
@@ -19,45 +21,24 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
     /** @var ReferenceNode[]  */
     protected array $references;
 
-    protected array $meta = [];
+    protected array $meta;
 
-    public function __construct(UriInterface $uri, $value = null, Node $parent = null)
+    public function __construct(UriInterface $uri, UriInterface $canonicalUri, $value = [], $meta = [])
     {
         $this->uri = $uri;
-        $this->parent = $parent;
-
-        if ($value instanceof \stdClass) {
-            $value = (array) $value;
-            $this->meta['emptyObject'] = empty($value);
-        }
-
-        if (is_array($value)) {
-            $paths = array_keys($value);
-            $value = array_combine(
-                $paths,
-                array_map(
-                    fn ($child, $path) =>
-                    '$ref' == (string) $path && is_string($child)
-                        ? new ReferenceNode($child, $this)
-                        : new Node(
-                        $uri->withFragment(
-                            join($uri->getFragment(), $this->encode((string) $path))
-                        ),
-                        $child,
-                        $this
-                    ),
-                    $value,
-                    $paths
-                )
-            );
-        }
-
+        $this->canonicalUri = $canonicalUri;
         $this->value = $value;
+        $this->meta = $meta;
     }
 
     public function uri(): UriInterface
     {
         return $this->uri;
+    }
+
+    public function canonicalUri(): UriInterface
+    {
+        return $this->canonicalUri;
     }
 
     /**
@@ -93,6 +74,12 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
         return $nodes[$path];
     }
 
+    public function add(string $path, Node $node): void
+    {
+        $node->parent = $this;
+        $this->value[$path] = $node;
+    }
+
     public function path(): string
     {
         if ($this->isRoot()) {
@@ -101,10 +88,10 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
 
         return reduce(
             function ($path, Node $node) {
-                return $this->encode($node->pathFromParent()) . '/' . $path;
+                return encode($node->pathFromParent()) . '/' . $path;
             },
             $this->nodesToRoot(),
-            $this->encode(
+            encode(
                 $this->pathFromParent()
             )
         );
@@ -136,7 +123,7 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
         $pathSegments = pathSegments($jsonPointer);
 
         while (!empty($pathSegments)) {
-            $pathSegment = $this->decode(
+            $pathSegment = decode(
                 array_shift($pathSegments)
             );
 
@@ -174,11 +161,6 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
         }
 
         return $node;
-    }
-
-    public function isLeaf(): bool
-    {
-        return is_scalar($this->value);
     }
 
     public function isRoot(): bool
@@ -242,9 +224,7 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
     {
         yield $node;
 
-        $value = $node->value();
-
-        if (!$node instanceof ReferenceNode && is_array($value)) {
+        if (!$node instanceof ReferenceNode && is_array($value = $node->value())) {
             foreach ($value as $child) {
                 yield from $this->doWalk($child);
             }
@@ -260,40 +240,28 @@ class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
         }
     }
 
-    public function offsetExists($offset)
+    public function offsetExists($offset): bool
     {
         return $this->has($offset);
     }
 
+    #[\ReturnTypeWillChange]
     public function offsetGet($offset)
     {
         return $this->get($offset);
     }
 
-    public function offsetSet($offset, $value)
+    public function offsetSet($offset, $value): void
     {
         throw new \RuntimeException('Node is read only');
     }
 
-    public function offsetUnset($offset)
+    public function offsetUnset($offset): void
     {
         throw new \RuntimeException('Node is read only');
     }
 
-    protected  function encode(string $value): string
-    {
-        return urlencode(
-            jsonPointerEncode($value)
-        );
-    }
-
-    protected function decode(string $encoded): string
-    {
-        return urldecode(
-            jsonPointerDecode($encoded)
-        );
-    }
-
+    #[\ReturnTypeWillChange]
     public function jsonSerialize()
     {
         return $this->denormalize();
