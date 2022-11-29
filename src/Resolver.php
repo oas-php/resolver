@@ -13,8 +13,8 @@ final class Resolver
 
     private TreeFactory $treeFactory;
 
-    /** @var Node[] */
-    private array $resolved;
+    /** @var array<string, Node> */
+    private array $resolved = [];
 
     public function __construct(Configuration $configuration = null)
     {
@@ -40,9 +40,9 @@ final class Resolver
     {
         $uri = $this->createUri($uri ?? getcwd());
         $root = $this->treeFactory->create($decoded, $uri);
-        $this->resolved = [$root];
+        $this->resolved[$uri->getPath()] = $root;
 
-        return $this->doResolveRefs($root, $this->resolved);
+        return $this->doResolveRefs($root, [$root]);
     }
 
     public function resolveEncoded(string $encoded, string $uri = null): Node
@@ -54,9 +54,9 @@ final class Resolver
             ),
             $uri
         );
-        $this->resolved = [$root];
+        $this->resolved[$uri->getPath()] = $root;
 
-        return $this->doResolveRefs($root, $this->resolved);
+        return $this->doResolveRefs($root, [$root]);
     }
 
     private function doResolve(UriInterface $uri, array $visited = []): Node
@@ -68,20 +68,18 @@ final class Resolver
             $uri
         );
 
-        $this->resolved[] = $graph;
-
         if (hasFragment($uri)) {
             $graph = $graph->find(
                 $uri->getFragment()
             );
         }
+        $this->resolved[(string)$uri] = $graph;
 
         return $this->doResolveRefs($graph, $visited);
     }
 
     private function doResolveRefs(Node $graph, array $visited): Node
     {
-        /** @var Node $node */
         foreach ($graph as $node) {
             if ($node instanceof ReferenceNode) {
                 $refUri = resolve(
@@ -167,28 +165,13 @@ final class Resolver
 
     private function resolved(UriInterface $uri): ?Node
     {
-        foreach ($this->resolved as $resolvedNode) {
-            if (includes($resolvedNode->uri(), $uri)) {
-                return $resolvedNode->find(
-                    $uri->getFragment()
-                );
-            }
+        $resolved = $this->resolved[$uri->getPath()] ?? null;
+        if (null === $resolved) {
 
-            /**
-             * check also sub-nodes canonical uri
-             *
-             * @var Node $childNode
-             */
-            foreach ($resolvedNode as $childNode) {
-                if (!$childNode instanceof ReferenceNode && includes($childNode->canonicalUri(), $uri)) {
-                    return $childNode->find(
-                        $uri->getFragment()
-                    );
-                }
-            }
+            return null;
         }
 
-        return null;
+        return hasFragment($uri) ? $resolved->find($uri->getFragment()) : $resolved;
     }
 
     private function createUri(string $uri): UriInterface

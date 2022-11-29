@@ -7,6 +7,10 @@ use Psr\Http\Message\UriInterface;
 use function OAS\Resolver\{decode, encode, pathSegments};
 use function iter\reduce;
 
+/**
+ * @template-extends \ArrayAccess<Node>
+ * @template-extends \IteratorAggregate<Node>
+ */
 class Node implements \ArrayAccess, \JsonSerializable, \IteratorAggregate
 {
     protected UriInterface $uri;
