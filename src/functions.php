@@ -73,14 +73,19 @@ function hasPath(UriInterface $uri): bool
     return !empty($path);
 }
 
+function hasPort(UriInterface $uri): bool
+{
+    return !empty($uri->getPort());
+}
+
 function hasHost(UriInterface $uri): bool
 {
-    return !is_null($uri->getHost());
+    return !empty($uri->getHost());
 }
 
 function hasScheme(UriInterface $uri): bool
 {
-    return !is_null($uri->getScheme());
+    return !empty($uri->getScheme());
 }
 
 function hasFileScheme(UriInterface $uri): bool
@@ -99,6 +104,39 @@ function join(string $pathA, string $pathB, $pathSeparator = DIRECTORY_SEPARATOR
         )
     );
 }
+
+function resolve(UriInterface $ref, UriInterface $base): UriInterface
+{
+    $resolved = $ref->withPath(
+        realPath(
+            $ref,
+            isAbsolute($ref) ? null
+                : (hasFragment($ref) && !hasPath($ref) ? $base : dirname($base))
+        )
+        ->getPath()
+    );
+
+    $resolved = !hasPort($resolved)
+        ? $resolved->withPort(
+            $base->getPort()
+        )
+        : $resolved;
+
+    $resolved = !hasHost($resolved)
+        ? $resolved->withHost(
+            $base->getHost()
+        )
+        : $resolved;
+
+    $resolved = !hasScheme($resolved)
+        ? $resolved->withScheme(
+            $base->getScheme()
+        )
+        : $resolved;
+
+    return $resolved;
+}
+
 
 function includes(UriInterface $uriA, UriInterface $uriB): bool
 {
@@ -141,6 +179,20 @@ function equals(UriInterface $uriA, UriInterface $uriB): bool
     return (string) $uriA == (string) $uriB;
 }
 
+
+function encode(string $value): string
+{
+    return urlencode(
+        jsonPointerEncode($value)
+    );
+}
+
+function decode(string $encoded): string
+{
+    return jsonPointerDecode(
+        urldecode($encoded)
+    );
+}
 
 function jsonPointerEncode(string $jsonPointer): string
 {

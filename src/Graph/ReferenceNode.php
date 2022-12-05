@@ -4,17 +4,16 @@ namespace OAS\Resolver\Graph;
 
 use Psr\Http\Message\UriInterface;
 use function iter\any;
-use function OAS\Resolver\{equals, pathSegments};
+use function OAS\Resolver\{decode, equals, pathSegments};
 
 class ReferenceNode extends Node
 {
     protected string $ref;
     protected ?Node $resolved = null;
 
-    public function __construct(string $ref, Node $parent)
+    public function __construct(string $ref)
     {
         $this->ref = $ref;
-        $this->parent = $parent;
     }
 
     public function ref(): string
@@ -25,6 +24,11 @@ class ReferenceNode extends Node
     public function uri(): UriInterface
     {
         return $this->resolved()->uri();
+    }
+
+    public function canonicalUri(): UriInterface
+    {
+        return $this->resolved()->canonicalUri();
     }
 
     public function value()
@@ -90,18 +94,18 @@ class ReferenceNode extends Node
     private function shortestRef(array $nodes): string
     {
         $sanitizedPathSegments = array_map(
-            fn($ref) => array_filter(
+            fn ($ref) => array_filter(
                 pathSegments($ref),
                 function (string $segment) {
-                    return '$ref' !== $this->decode($segment);
+                    return '$ref' !== decode($segment);
                 }
             ),
-            array_map(fn(Node $node) => $node->path(), $nodes)
+            array_map(fn (Node $node) => $node->path(), $nodes)
         );
 
         $shortest = array_reduce(
             array_slice($sanitizedPathSegments, 1),
-            fn(array $shortest, array $current) => count($shortest) > count($current)
+            fn (array $shortest, array $current) => count($shortest) > count($current)
                 ? $current : $shortest,
             $sanitizedPathSegments[0]
         );
