@@ -1,4 +1,5 @@
 # oas-php / **resolver**
+## [WIP]
 ### JSON Reference resolver
 > An OpenAPI document MAY be made up of a single document or be divided into multiple, connected parts at the discretion of the user. In the latter case, $ref fields MUST be used in the specification to reference those parts as follows from the JSON Schema definitions.
 
@@ -17,9 +18,6 @@ The package dependency list is short as possible. However, I suggest installing 
 If you install [suggested packages](./doc/01_installation.md#suggested-packages), the simplest use case may look like:
 ```PHP
 $resolved = (new Resolver)->resolve('https://oas-php.github.io/sample/theater/openapi.json');
-
-// encode resolved document as JSON 
-echo EncoderFactory::create()->encode($resolved, 'json');
 ```
 
 See [documentation](./doc/README.md) to learn more.

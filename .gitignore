@@ -1,1 +1,5 @@
-/vendor/
+vendor
+examples
+test.php
+.idea
+.bash_history

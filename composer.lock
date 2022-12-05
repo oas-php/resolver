@@ -4,8 +4,59 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c2aa60748e3fadf1f10c01de999247ad",
+    "content-hash": "d3b022672a22ce60a2825cf1d43e0891",
     "packages": [
+        {
+            "name": "nikic/iter",
+            "version": "v2.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nikic/iter.git",
+                "reference": "a7f3aa313c1315e14cf1d7e520c0f781f584a42f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nikic/iter/zipball/a7f3aa313c1315e14cf1d7e520c0f781f584a42f",
+                "reference": "a7f3aa313c1315e14cf1d7e520c0f781f584a42f",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "~7.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0-dev"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/iter.func.php",
+                    "src/iter.php",
+                    "src/iter.rewindable.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Nikita Popov",
+                    "email": "nikic@php.net"
+                }
+            ],
+            "description": "Iteration primitives using generators",
+            "keywords": [
+                "functional",
+                "generator",
+                "iterator"
+            ],
+            "time": "2020-09-19T15:58:13+00:00"
+        },
         {
             "name": "psr/http-factory",
             "version": "1.0.1",
@@ -651,6 +702,39 @@
                 "php"
             ],
             "time": "2020-09-26T10:30:38+00:00"
+        },
+        {
+            "name": "oas-php/sample",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/oas-php/sample.git",
+                "reference": "97aae1a31379cef6b92950e1373a40b06f24017d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/oas-php/sample/zipball/97aae1a31379cef6b92950e1373a40b06f24017d",
+                "reference": "97aae1a31379cef6b92950e1373a40b06f24017d",
+                "shasum": ""
+            },
+            "default-branch": true,
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Kuba Biernacki",
+                    "email": "kubiernacki@gmail.com"
+                }
+            ],
+            "description": "Sample Schema",
+            "support": {
+                "issues": "https://github.com/oas-php/sample/issues",
+                "source": "https://github.com/oas-php/sample/tree/master"
+            },
+            "time": "2021-01-18T20:38:02+00:00"
         },
         {
             "name": "phar-io/manifest",
@@ -2662,12 +2746,12 @@
             "version": "1.9.1",
             "source": {
                 "type": "git",
-                "url": "https://github.com/webmozart/assert.git",
+                "url": "https://github.com/webmozarts/assert.git",
                 "reference": "bafc69caeb4d49c39fd0779086c03a3738cbb389"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/webmozart/assert/zipball/bafc69caeb4d49c39fd0779086c03a3738cbb389",
+                "url": "https://api.github.com/repos/webmozarts/assert/zipball/bafc69caeb4d49c39fd0779086c03a3738cbb389",
                 "reference": "bafc69caeb4d49c39fd0779086c03a3738cbb389",
                 "shasum": ""
             },
@@ -2709,10 +2793,15 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {
+        "oas-php/sample": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
-    "platform": [],
+    "platform": {
+        "php": ">=7.4",
+        "ext-json": "*"
+    },
     "platform-dev": [],
-    "plugin-api-version": "1.1.0"
+    "plugin-api-version": "2.0.0"
 }

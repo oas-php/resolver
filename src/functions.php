@@ -4,82 +4,6 @@ namespace OAS\Resolver;
 
 use Psr\Http\Message\UriInterface;
 
-/**
- * @internal
- *
- * @param array $graph
- * @param array $path
- * @param mixed $replacement
- * @return mixed
- */
-function replaceAtPath(array $graph, array $path, $replacement)
-{
-    if (empty($path)) {
-        return $replacement;
-    }
-
-    $toReplace = &retrieveByPath($graph, $path);
-    $toReplace = $replacement;
-
-    return $graph;
-}
-
-/**
- * @internal
- *
- * @param \ArrayAccess|array $graph
- * @param array $path
- * @return array|mixed
- */
-function &retrieveByPath(&$graph, array $path)
-{
-    if (!is_array($graph) && !$graph instanceof \ArrayAccess) {
-        throw new \InvalidArgumentException(
-            'The first parameter must be of array|\ArrayAccess type'
-        );
-    }
-
-    $current = &$graph;
-
-    foreach ($path as $pathSegment) {
-        if (!array_key_exists($pathSegment, $current)) {
-            throw new \RuntimeException(sprintf('Path "%s" does not exist', \join(' -> ', $path)));
-        }
-
-        $current = &$current[$pathSegment];
-    }
-
-    return $current;
-}
-
-function append(array $collection, $element): array
-{
-    array_push($collection, $element);
-
-    return $collection;
-}
-
-/**
- * @internal
- *
- * @param $key
- * @param $array
- * @return bool
- */
-function array_key_exists($key, $array)
-{
-    return $array instanceof \ArrayAccess
-        ? $array->offsetExists($key)
-        : \array_key_exists($key, $array);
-}
-
-function put(array $map, string $key, $value): array
-{
-    $map[$key] = $value;
-
-    return $map;
-}
-
 function dirname(UriInterface $uri): UriInterface
 {
     return $uri->withPath(
@@ -91,10 +15,17 @@ function dirname(UriInterface $uri): UriInterface
 
 function realPath(UriInterface $uri, UriInterface $context = null): UriInterface
 {
-    $contextPathSegments = array_reduce(
-        pathSegments($uri->getPath()),
+    $separator = hasFileScheme($uri) ? DIRECTORY_SEPARATOR : '/';
+    $path = resolvePath($uri->getPath(), $context ? $context->getPath() : null, $separator);
+
+    return $uri->withPath($path == $separator ? '' : $path);
+}
+
+function resolvePath(string $path, string $context = null, string $segmentSeparator = DIRECTORY_SEPARATOR): string
+{
+    $pathSegments = array_reduce(
+        pathSegments($path),
         function (array $contextPathSegments, string $relativePathSegment): array {
-            // current directory
             if ('..' == $relativePathSegment) {
                 if (empty($contextPathSegments))  {
                     throw new \InvalidArgumentException('Invalid relative path: out of context boundary');
@@ -107,30 +38,20 @@ function realPath(UriInterface $uri, UriInterface $context = null): UriInterface
 
             return $contextPathSegments;
         },
-        $context ? pathSegments($context->getPath()) : []
+        $context ? pathSegments($context) : []
     );
 
-    return $uri->withPath(
-        DIRECTORY_SEPARATOR . join(DIRECTORY_SEPARATOR, $contextPathSegments)
+    return $segmentSeparator.\join($segmentSeparator, $pathSegments);
+}
+
+function pathSegments(string $path, string $segmentSeparator = DIRECTORY_SEPARATOR): array
+{
+    return \array_values(
+        \array_filter(
+            \explode($segmentSeparator, $path),
+            fn ($pathSegment) => '' !== $pathSegment
+        )
     );
-}
-
-function pathSegments(string $path): array
-{
-    if (DIRECTORY_SEPARATOR === ($path[0] ?? null)) {
-        $path = substr($path, 1);
-    }
-
-    if (DIRECTORY_SEPARATOR === ($path[strlen($path) - 1] ?? null)) {
-        $path = substr($path, 0, -1);
-    }
-
-    return '' === $path ? [] : explode(DIRECTORY_SEPARATOR, $path);
-}
-
-function withoutFragment(UriInterface $uri): UriInterface
-{
-    return $uri->withFragment('');
 }
 
 function hasFragment(UriInterface $uri): bool
@@ -160,4 +81,73 @@ function hasHost(UriInterface $uri): bool
 function hasScheme(UriInterface $uri): bool
 {
     return !is_null($uri->getScheme());
+}
+
+function hasFileScheme(UriInterface $uri): bool
+{
+    $scheme = $uri->getScheme();
+
+    return 'file' == $uri->getScheme() || ('' == $scheme && '' == $uri->getHost());
+}
+
+function join(string $pathA, string $pathB, $pathSeparator = DIRECTORY_SEPARATOR): string
+{
+    return $pathSeparator . \join($pathSeparator,
+        \array_merge(
+            pathSegments($pathA, $pathSeparator),
+            pathSegments($pathB, $pathSeparator)
+        )
+    );
+}
+
+function includes(UriInterface $uriA, UriInterface $uriB): bool
+{
+    if (((string) $uriA) == ((string) $uriB))
+        return true;
+
+    if (((string) $uriA->withFragment('')) != ((string) $uriB->withFragment('')))
+        return false;
+
+    $fragmentSegmentsA = pathSegments($uriA->getFragment());
+    $fragmentSegmentsB = pathSegments($uriB->getFragment());
+
+    if (\count($fragmentSegmentsB) < \count($fragmentSegmentsA)) {
+        return false;
+    }
+
+    while(!empty($fragmentSegmentsA)) {
+        $fragmentSegmentA =  array_shift($fragmentSegmentsA);
+        $fragmentSegmentB =  array_shift($fragmentSegmentsB);
+
+        if ($fragmentSegmentA != $fragmentSegmentB) {
+            return false;
+        }
+
+    }
+
+    return true;
+}
+
+function equals(UriInterface $uriA, UriInterface $uriB): bool
+{
+    if ($uriA->getFragment() === '/') {
+        $uriA = $uriA->withFragment('');
+    }
+
+    if ($uriB->getFragment() === '/') {
+        $uriB = $uriB->withFragment('');
+    }
+
+    return (string) $uriA == (string) $uriB;
+}
+
+
+function jsonPointerEncode(string $jsonPointer): string
+{
+    return str_replace(['~', '/'], ['~0', '~1'], $jsonPointer);
+}
+
+function jsonPointerDecode(string $encodedJsonPointer): string
+{
+    return str_replace(['~0', '~1'], ['~', '/'], $encodedJsonPointer);
 }
