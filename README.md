@@ -1,5 +1,4 @@
 # oas-php / **resolver**
-## [WIP]
 ### JSON Reference resolver
 > An OpenAPI document MAY be made up of a single document or be divided into multiple, connected parts at the discretion of the user. In the latter case, $ref fields MUST be used in the specification to reference those parts as follows from the JSON Schema definitions.
 
