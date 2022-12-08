@@ -7,14 +7,14 @@ use OAS\Resolver\Graph\Node;
 use OAS\Resolver\Graph\ReferenceNode;
 use Psr\Http\Message\UriInterface;
 
-final class Resolver
+class Resolver
 {
     private Configuration $configuration;
 
     private TreeFactory $treeFactory;
 
-    /** @var Node[] */
-    private array $resolved;
+    /** @var array<string, Node> */
+    private array $resolved = [];
 
     public function __construct(Configuration $configuration = null)
     {
@@ -40,9 +40,9 @@ final class Resolver
     {
         $uri = $this->createUri($uri ?? getcwd());
         $root = $this->treeFactory->create($decoded, $uri);
-        $this->resolved = [$root];
+        $this->resolved[(string) $uri->withFragment('')] = $root;
 
-        return $this->doResolveRefs($root, $this->resolved);
+        return $this->doResolveRefs($root, [$root]);
     }
 
     public function resolveEncoded(string $encoded, string $uri = null): Node
@@ -54,9 +54,9 @@ final class Resolver
             ),
             $uri
         );
-        $this->resolved = [$root];
+        $this->resolved[(string) $uri->withFragment('')] = $root;
 
-        return $this->doResolveRefs($root, $this->resolved);
+        return $this->doResolveRefs($root, [$root]);
     }
 
     private function doResolve(UriInterface $uri, array $visited = []): Node
@@ -68,7 +68,7 @@ final class Resolver
             $uri
         );
 
-        $this->resolved[] = $graph;
+        $this->resolved[(string) $uri->withFragment('')] = $graph;
 
         if (hasFragment($uri)) {
             $graph = $graph->find(
@@ -81,7 +81,6 @@ final class Resolver
 
     private function doResolveRefs(Node $graph, array $visited): Node
     {
-        /** @var Node $node */
         foreach ($graph as $node) {
             if ($node instanceof ReferenceNode) {
                 $refUri = resolve(
@@ -116,7 +115,7 @@ final class Resolver
         return $graph;
     }
 
-    private function fetch(UriInterface $uri): string
+    protected function fetch(UriInterface $uri): string
     {
         $normalized = (string) realPath(
             $uri->withFragment('')
@@ -167,25 +166,10 @@ final class Resolver
 
     private function resolved(UriInterface $uri): ?Node
     {
-        foreach ($this->resolved as $resolvedNode) {
-            if (includes($resolvedNode->uri(), $uri)) {
-                return $resolvedNode->find(
-                    $uri->getFragment()
-                );
-            }
+        $resolved = $this->resolved[(string) $uri->withFragment('')] ?? null;
 
-            /**
-             * check also sub-nodes canonical uri
-             *
-             * @var Node $childNode
-             */
-            foreach ($resolvedNode as $childNode) {
-                if (!$childNode instanceof ReferenceNode && includes($childNode->canonicalUri(), $uri)) {
-                    return $childNode->find(
-                        $uri->getFragment()
-                    );
-                }
-            }
+        if (null !== $resolved) {
+            return hasFragment($uri) ? $resolved->find($uri->getFragment()) : $resolved;
         }
 
         return null;
