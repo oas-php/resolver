@@ -1,0 +1,35 @@
+{
+  "$defs": {
+    "phoneNumber": {
+      "type": "object",
+      "properties": {
+        "countryCode": {
+          "type": "integer",
+          "pattern": "^[0-9]{1,3}$"
+        },
+        "number": {
+          "type": "integer",
+          "pattern": "^[0-9]{7,9}$"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "street": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "zipCode": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "phoneNumber": {
+      "$ref": "#/$defs/phoneNumber"
+    }
+  }
+}
